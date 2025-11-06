@@ -185,7 +185,13 @@ const WarningsPage = () => {
 
   const handleNodeClick = (node) => {
     if (!node) return;
-    setSelectedFunction(prev => (prev === node.id ? null : node.id));
+    const targetFunction = functionsWithMetrics.find(func => func.name === node.id);
+    if (targetFunction) {
+      setSelectedFunction(targetFunction.name);
+      navigate(`/function/${targetFunction.id}`);
+    } else {
+      setSelectedFunction(node.id);
+    }
   };
 
   const selectedFunctionMeta = functionsWithMetrics.find(func => func.name === selectedFunction);
@@ -389,11 +395,19 @@ const WarningsPage = () => {
         {/* Right Panel */}
         <div className={`w-full ${isPresetPanelOpen ? 'lg:w-[70%]' : 'lg:w-full'} bg-white p-6 overflow-hidden transition-all duration-300`}>
           <div className="h-full flex flex-col">
-            <div className="mb-4">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Call Graph Visualization</h2>
-              <p className="text-sm text-gray-600">
-                좌측 리스트에서 함수를 선택하거나 그래프 노드를 클릭하면 해당 함수와 1-hop 연결이 하이라이트 됩니다.
-              </p>
+            <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-2 md:mb-0">Call Graph Visualization</h2>
+                <p className="text-sm text-gray-600">
+                  좌측 리스트에서 함수를 선택하거나 그래프 노드를 클릭하면 해당 함수와 1-hop 연결이 하이라이트 됩니다.
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedFunction(null)}
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                그래프 초기화
+              </button>
             </div>
             <div className="flex-1">
               <CallGraph 
