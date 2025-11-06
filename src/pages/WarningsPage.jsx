@@ -50,6 +50,7 @@ const FILTER_CONFIG = {
       options: [
         { value: '0', label: '전체' },
         { value: '2', label: '2+' },
+        { value: '3', label: '3+' },
         { value: '4', label: '4+' },
         { value: '6', label: '6+' }
       ]
@@ -93,6 +94,7 @@ const FILTER_CONFIG = {
         { value: '0', label: '제한 없음' },
         { value: '6', label: '6 이하' },
         { value: '10', label: '10 이하' },
+        { value: '12', label: '12 이하' },
         { value: '14', label: '14 이하' }
       ]
     }

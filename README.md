@@ -1,53 +1,94 @@
-# RefaVis – Visualization-Driven Refactoring Explorer
+# RefaVis – 시각화 기반 리팩토링 탐색기
 
-RefaVis is an interactive React + Vite + Tailwind dashboard that helps surface refactoring candidates in large code bases.  
-The app focuses on two perspectives:
+RefaVis는 React + Vite + Tailwind로 만든 인터랙티브 대시보드로, 대규모 코드베이스에서 리팩토링 우선순위를 빠르게 식별할 수 있도록 돕습니다.  
+앱은 다음 두 가지 관점에 집중합니다.
 
-1. **Preset-driven function curation** – choose between complexity, severity, or easy-to-fix presets to reveal curated filter controls and ranked function cards.
-2. **Call graph context** – see the selected function and its one-hop relationships highlighted directly in a D3-based call graph.
+1. **프리셋 기반 함수 큐레이션** – 복잡도·경고 심각도·쉬운 개선 프리셋 중 하나를 선택하면 상황에 맞는 필터와 정렬된 카드 목록이 제공됩니다.
+2. **콜 그래프 문맥** – 선택한 함수와 1-hop 이웃을 D3 기반 콜 그래프에서 바로 하이라이트하여 의존 관계를 이해할 수 있습니다.
 
-This repository contains only the frontend. All data is mocked locally (`src/mockData.json`) so the UI can be demonstrated without a backend.
-
----
-
-## Features
-
-- 🧭 **Preset selector**: Switch between “복잡도 높은 함수”, “심각한 경고가 많은 함수”, and “고치기 쉬운 경고가 많은 함수”. Each preset exposes relevant filters in the left panel.
-- 🎚️ **Dynamic filters**: Filter by warning count, complexity, severity, degree, and easy-fix density. Cards update immediately.
-- 🧩 **Function cards**: Consistent Tailwind styling with hover/selection states, quick detail links, and severity chips.
-- 🕸️ **Call graph highlighting**: Clicking a card (or node) highlights the function and its neighbors using the project’s primary blue palette.
-- 📱 **Responsive layout**: Left panel can collapse via the edge toggle so the graph can take the full viewport.
+이 저장소에는 프런트엔드만 포함되어 있습니다. 모든 데이터는 `src/mockData.json`에 모킹되어 있어 백엔드 없이도 UI 데모가 가능합니다.
 
 ---
 
-## Getting Started
+## 주요 기능
 
-### Prerequisites
+- 🧭 **프리셋 선택기**: “복잡도 높은 함수”, “심각한 경고가 많은 함수”, “고치기 쉬운 경고가 많은 함수” 사이를 전환할 수 있으며, 각 프리셋은 좌측 패널에 꼭 맞는 필터를 노출합니다.
+- 🎚️ **동적 필터**: 경고 수, 복잡도, 심각도, 연결도, 쉬운 개선 정도로 필터링하면 카드가 즉시 갱신됩니다.
+- 🧩 **함수 카드**: Tailwind 기반 스타일링으로 카드마다 호버/선택 상태, 상세 보기 링크, 심각도 칩을 제공합니다.
+- 🕸️ **콜 그래프 하이라이트**: 카드나 노드를 클릭하면 함수와 이웃 노드가 주요 블루 팔레트로 강조됩니다.
+- 📱 **반응형 레이아웃**: 좌측 패널은 토글 버튼으로 접을 수 있어 그래프 영역을 넓게 사용할 수 있습니다.
 
-- Node.js 18+ (tested with Node 20)
-- npm 9+ (ships with recent Node versions)
+---
 
-### Installation
+## 작동 방식
+
+1. **모킹된 분석 데이터**  
+   모든 경고·함수 메트릭·그래프 연결 정보는 `src/mockData.json`에 있으며, `src/mockData.js`가 경고 ID를 실제 객체로 확장해 재사용 가능한 배열로 내보냅니다.
+
+2. **프리셋별 필터링 흐름**  
+   `src/pages/WarningsPage.jsx`에는 `complexity`, `severity`, `easy` 3가지 프리셋이 정의되어 있습니다.
+   - 프리셋별 기본값을 로딩합니다(예: 복잡도 프리셋 → 최소 경고 수 ≥ 1, 최소 연결도 ≥ 3, 심각도 High).
+   - 현재 프리셋과 관련된 셀렉트 박스만 보여주며, 기본 옵션은 항상 목록에 포함됩니다.
+   - 정렬 방식도 프리셋에 맞춰 달라집니다(복잡도 내림차순, High 경고 수 내림차순, easy-fix 수 내림차순 등).
+
+3. **함수 카드 인터랙션**  
+   - 카드를 클릭하면 선택 상태가 토글되고, 콜 그래프에서도 동일한 함수가 하이라이트됩니다.
+   - “함수 상세 보기” 버튼은 향후용 상세 페이지(`/function/:id`)로 라우팅합니다.
+   - 심각도 칩(High/Medium/Low)은 해당 경고가 하나 이상 있을 때만 렌더링됩니다.
+
+4. **콜 그래프 하이라이트**  
+   `src/components/CallGraph.jsx`는 D3를 이용해 그래프를 그립니다. 함수가 선택되면:
+   - 선택한 노드와 1-hop 이웃 노드가 강조 색상과 100% 불투명도로 유지됩니다.
+   - 연결된 엣지는 더 진한 색과 높은 불투명도로 표시되어 관계를 강조합니다.
+   - 그 외 노드는 25% 불투명도로 낮춰 시각적 잡음을 줄입니다.  
+   기본적으로 노드 드래그, 확대/축소, 간단한 툴팁을 지원합니다.
+
+5. **양방향 선택 연동**  
+   그래프에서 노드를 클릭하면 `WarningsPage`의 상태가 갱신되어 동일한 카드를 선택/해제합니다. 선택하지 않은 상태에서의 호버는 일시적으로 연결된 노드와 엣지만 강조합니다.
+
+6. **프리셋 패널 제어**  
+   좌측 패널은 둥근 토글 버튼으로 접거나 펼칠 수 있습니다. 패널이 접히면 프리셋 버튼과 필터, 함수 개수 표시가 숨겨지고, 다시 펼치면 동일한 상태로 복원됩니다.
+
+---
+
+## UI 탐색 흐름
+
+- **초기 진입** – `/warnings` 경로에서 “복잡도 높은 함수” 프리셋이 기본 활성화되며, 경고 ≥ 1 · 연결도 ≥ 3 · 심각도 High 조건을 자동 적용합니다.
+- **프리셋 변경** – 프리셋을 바꾸면 표시되는 필터와 기본값이 함께 전환됩니다. `필터 초기화` 버튼은 언제나 해당 프리셋의 기본 조합으로 되돌립니다.
+- **필터 조정** – 드롭다운에서 값을 바꾸면 즉시 함수 목록이 재계산됩니다.
+- **그래프 탐색** – 카드나 노드를 선택해 주변 관계를 확인하고, 범례를 참고해 색상을 해석하며 드래그·줌으로 구조를 탐색할 수 있습니다.
+- **향후 확장** – 세부 패널과 추가 네비게이션은 추후 개발을 위해 비워 두었습니다. 현재 UI 문구가 이 범위를 명시합니다.
+
+---
+
+## 시작하기
+
+### 사전 준비
+
+- Node.js 18 이상(권장: Node 20)
+- npm 9 이상(Node 최신 버전에 포함)
+
+### 설치
 
 ```bash
 npm install
 ```
 
-### Development Server
+### 개발 서버 실행
 
 ```bash
 npm run dev
 ```
 
-Vite will print a local URL (usually `http://localhost:5173`). Hot Module Reloading is enabled by default.
+Vite가 로컬 주소(기본 `http://localhost:5173`)를 출력하며, HMR이 기본 활성화됩니다.
 
-### Production Build
+### 프로덕션 빌드
 
 ```bash
 npm run build
 ```
 
-The output is written to `dist/`. To preview the production bundle locally:
+빌드 결과는 `dist/`에 생성됩니다. 로컬에서 프로덕션 번들을 미리 보려면:
 
 ```bash
 npm run preview
@@ -55,32 +96,39 @@ npm run preview
 
 ---
 
-## Project Structure
+## 프로젝트 구조
 
 ```
 src/
 ├─ components/
-│  ├─ CallGraph.jsx        # D3 graph with highlight states
-│  └─ …                    # Layout + shared UI parts
+│  ├─ CallGraph.jsx        # 하이라이트 상태를 가진 D3 그래프
+│  └─ …                    # 레이아웃 및 공용 UI 컴포넌트
 ├─ pages/
-│  └─ WarningsPage.jsx     # Main RefaVis experience
-├─ mockData.json           # Mock warnings, functions, graph nodes/edges
-├─ mockData.js             # Utility exports derived from the JSON
-└─ main.jsx / App.jsx      # App entry
+│  └─ WarningsPage.jsx     # RefaVis 핵심 화면
+├─ mockData.json           # 모킹된 경고·함수·그래프 노드/엣지
+├─ mockData.js             # JSON을 파생 데이터로 변환하는 유틸
+└─ main.jsx / App.jsx      # 앱 엔트리 포인트
 ```
 
-We use **JavaScript** (no TypeScript) with modern ES modules and JSX.
+TypeScript 없이 **JavaScript**와 ES 모듈, JSX 조합을 사용합니다.
 
 ---
 
-## Customization Tips
+## 커스터마이징 팁
 
-- **Data**: Replace `src/mockData.json` with real analysis output. Keep the same schema (warnings/functions/nodes/edges) or update `mockData.js`.
-- **Branding**: Tailwind classes live directly inside the JSX. Update theme colors in `tailwind.config.js` if you want global palette changes.
-- **Future panels**: There is a placeholder note in the left panel for a future “Function Detail” pane. Add a new component in `components/` and mount it next to the call graph when ready.
+- **데이터 교체**: `src/mockData.json`을 실제 분석 결과로 바꿀 수 있습니다. 기존 스키마( warnings/functions/nodes/edges )를 유지하거나 `mockData.js` 로직을 수정하세요.
+- **브랜딩 변경**: Tailwind 클래스는 JSX에 직접 들어 있습니다. 전역 팔레트를 바꾸고 싶다면 `tailwind.config.js`에서 테마 색상을 수정하세요.
+- **추가 패널**: 좌측 패널에는 “Function Detail” 추가 예정 안내가 있습니다. 컴포넌트를 `components/`에 만들고 그래프 옆에 마운트하면 확장할 수 있습니다.
 
 ---
 
-## License
+## 개발 메모
 
-This project inherits the license of your parent repository. Update this section if you need to distribute RefaVis under a specific license.
+- ESLint는 `eslint.config.js`에 현대식 플랫 설정으로 구성되어 있습니다. `npm run lint` 명령은 해당 설정에서 참조하는 `@typescript-eslint/*` 패키지가 필요하므로, 린팅을 사용하려면 별도로 설치해야 합니다.
+- 최상단 라우팅은 `App.jsx`의 React Router가 담당합니다. 현재 `/warnings`만 동작하지만 `/function/:id`, `/graph/:id`, `/compare` 경로가 향후 확장을 위해 준비되어 있습니다.
+
+---
+
+## 라이선스
+
+이 프로젝트는 상위 저장소의 라이선스를 따릅니다. 별도의 배포 라이선스가 필요하면 이 섹션을 업데이트하세요.

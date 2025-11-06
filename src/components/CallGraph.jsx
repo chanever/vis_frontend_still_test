@@ -1,10 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { mockData } from '../mockData';
 
 const CallGraph = ({ selectedFunction = null, onNodeClick = null }) => {
   const svgRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const nodeSelectionRef = useRef(null);
+  const linkSelectionRef = useRef(null);
+  const nodesDataRef = useRef([]);
+  const edgesDataRef = useRef([]);
+  const selectedFunctionRef = useRef(selectedFunction);
+  const onNodeClickRef = useRef(onNodeClick);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -19,168 +25,177 @@ const CallGraph = ({ selectedFunction = null, onNodeClick = null }) => {
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
 
+  const getDatumId = useCallback((endpoint) => (
+    typeof endpoint === 'string' ? endpoint : endpoint.id
+  ), []);
+
+  const applyHighlight = useCallback((selectedId) => {
+    const nodeSelection = nodeSelectionRef.current;
+    const linkSelection = linkSelectionRef.current;
+    const edges = edgesDataRef.current;
+
+    if (!nodeSelection || !linkSelection) return;
+
+    const highlightedNeighbors = new Set();
+    const highlightedEdgeKeys = new Set();
+    const createEdgeKey = (source, target) => `${source}->${target}`;
+
+    if (selectedId) {
+      edges.forEach(edge => {
+        const sourceId = getDatumId(edge.source);
+        const targetId = getDatumId(edge.target);
+        if (sourceId === selectedId) {
+          highlightedNeighbors.add(targetId);
+          highlightedEdgeKeys.add(createEdgeKey(sourceId, targetId));
+        } else if (targetId === selectedId) {
+          highlightedNeighbors.add(sourceId);
+          highlightedEdgeKeys.add(createEdgeKey(sourceId, targetId));
+        }
+      });
+    }
+
+    nodeSelection.select('circle')
+      .attr('fill', d => {
+        if (selectedId && d.id === selectedId) return '#2563eb';
+        if (selectedId && highlightedNeighbors.has(d.id)) return '#93c5fd';
+        return '#60a5fa';
+      })
+      .attr('stroke', d => {
+        if (selectedId && (d.id === selectedId || highlightedNeighbors.has(d.id))) return '#1d4ed8';
+        return '#ffffff';
+      })
+      .attr('stroke-width', d => (selectedId && d.id === selectedId ? 3 : 2))
+      .attr('opacity', d => {
+        if (!selectedId) return 1;
+        return (d.id === selectedId || highlightedNeighbors.has(d.id)) ? 1 : 0.25;
+      });
+
+    linkSelection
+      .attr('stroke', d => {
+        if (!selectedId) return '#999';
+        const key = createEdgeKey(getDatumId(d.source), getDatumId(d.target));
+        return highlightedEdgeKeys.has(key) ? '#2563eb' : '#cbd5f5';
+      })
+      .attr('stroke-opacity', d => {
+        if (!selectedId) return 0.6;
+        const key = createEdgeKey(getDatumId(d.source), getDatumId(d.target));
+        return highlightedEdgeKeys.has(key) ? 0.9 : 0.15;
+      });
+  }, [getDatumId]);
+
   useEffect(() => {
     if (dimensions.width === 0 || dimensions.height === 0) return;
 
     const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove(); // Clear previous graph
+    svg.selectAll('*').remove(); // 초기화
 
     const nodes = mockData.nodes.map(node => ({ ...node }));
     const edges = mockData.edges.map(edge => ({ ...edge }));
 
-    const highlightedNeighbors = new Set();
-    const highlightedEdgeKeys = new Set();
+    nodesDataRef.current = nodes;
+    edgesDataRef.current = edges;
 
-    const createEdgeKey = (source, target) => `${source}->${target}`;
-    const getDatumId = (endpoint) => typeof endpoint === 'string' ? endpoint : endpoint.id;
-
-    if (selectedFunction) {
-      edges.forEach(edge => {
-        if (edge.source === selectedFunction) {
-          highlightedNeighbors.add(edge.target);
-          highlightedEdgeKeys.add(createEdgeKey(edge.source, edge.target));
-        } else if (edge.target === selectedFunction) {
-          highlightedNeighbors.add(edge.source);
-          highlightedEdgeKeys.add(createEdgeKey(edge.source, edge.target));
-        }
-      });
-    }
-    
-    // Create force simulation
     const simulation = d3.forceSimulation(nodes)
-      .force("link", d3.forceLink(edges).id(d => d.id).distance(100))
-      .force("charge", d3.forceManyBody().strength(-300))
-      .force("center", d3.forceCenter(dimensions.width / 2, dimensions.height / 2))
-      .force("collision", d3.forceCollide().radius(30));
+      .force('link', d3.forceLink(edges).id(d => d.id).distance(100))
+      .force('charge', d3.forceManyBody().strength(-300))
+      .force('center', d3.forceCenter(dimensions.width / 2, dimensions.height / 2))
+      .force('collision', d3.forceCollide().radius(30));
 
-    // Create container for zoom
-    const container = svg.append("g");
+    const container = svg.append('g');
 
-    // Add zoom behavior
     const zoom = d3.zoom()
       .scaleExtent([0.1, 4])
-      .on("zoom", (event) => {
-        container.attr("transform", event.transform);
+      .on('zoom', (event) => {
+        container.attr('transform', event.transform);
       });
 
     svg.call(zoom);
 
-    // Create links
-    const link = container.append("g")
-      .attr("class", "links")
-      .selectAll("line")
+    svg.append('defs').append('marker')
+      .attr('id', 'arrowhead')
+      .attr('viewBox', '-0 -5 10 10')
+      .attr('refX', 25)
+      .attr('refY', 0)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M 0,-5 L 10 ,0 L 0,5')
+      .attr('fill', '#94a3b8');
+
+    const link = container.append('g')
+      .attr('class', 'links')
+      .selectAll('line')
       .data(edges)
-      .enter().append("line")
-      .attr("stroke", d => {
-        if (!selectedFunction) return "#999";
-        const key = createEdgeKey(getDatumId(d.source), getDatumId(d.target));
-        return highlightedEdgeKeys.has(key) ? "#2563eb" : "#cbd5f5";
-      })
-      .attr("stroke-opacity", d => {
-        if (!selectedFunction) return 0.6;
-        const key = createEdgeKey(getDatumId(d.source), getDatumId(d.target));
-        return highlightedEdgeKeys.has(key) ? 0.9 : 0.15;
-      })
-      .attr("stroke-width", 2)
-      .attr("marker-end", "url(#arrowhead)");
+      .enter().append('line')
+      .attr('stroke-width', 2)
+      .attr('marker-end', 'url(#arrowhead)');
 
-    // Create arrow markers
-    svg.append("defs").append("marker")
-      .attr("id", "arrowhead")
-      .attr("viewBox", "-0 -5 10 10")
-      .attr("refX", 25)
-      .attr("refY", 0)
-      .attr("orient", "auto")
-      .append("path")
-      .attr("d", "M 0,-5 L 10 ,0 L 0,5")
-      .attr("fill", "#94a3b8");
-
-    // Create nodes
-    const node = container.append("g")
-      .attr("class", "nodes")
-      .selectAll("g")
+    const node = container.append('g')
+      .attr('class', 'nodes')
+      .selectAll('g')
       .data(nodes)
-      .enter().append("g")
-      .attr("class", "node")
-      .style("cursor", "pointer")
+      .enter().append('g')
+      .attr('class', 'node')
+      .style('cursor', 'pointer')
       .call(d3.drag()
-        .on("start", dragstarted)
-        .on("drag", dragged)
-        .on("end", dragended));
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended));
 
-    // Add circles for nodes
-    node.append("circle")
-      .attr("r", d => Math.max(15, Math.min(25, d.degree * 2)))
-      .attr("fill", d => {
-        if (selectedFunction && d.id === selectedFunction) return "#2563eb";
-        if (selectedFunction && highlightedNeighbors.has(d.id)) return "#93c5fd";
-        return "#60a5fa";
-      })
-      .attr("stroke", d => {
-        if (selectedFunction && (d.id === selectedFunction || highlightedNeighbors.has(d.id))) return "#1d4ed8";
-        return "#ffffff";
-      })
-      .attr("stroke-width", d => (selectedFunction && d.id === selectedFunction ? 3 : 2))
-      .attr("opacity", d => {
-        if (!selectedFunction) return 1;
-        return (d.id === selectedFunction || highlightedNeighbors.has(d.id)) ? 1 : 0.25;
-      });
+    node.append('circle')
+      .attr('r', d => Math.max(15, Math.min(25, d.degree * 2)));
 
-    // Add labels
-    node.append("text")
-      .attr("dx", 0)
-      .attr("dy", 5)
-      .attr("text-anchor", "middle")
-      .attr("font-size", "10px")
-      .attr("font-weight", "bold")
-      .attr("fill", "#333")
-      .text(d => d.name.length > 8 ? d.name.substring(0, 8) + "..." : d.name);
+    node.append('text')
+      .attr('dx', 0)
+      .attr('dy', 5)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '10px')
+      .attr('font-weight', 'bold')
+      .attr('fill', '#333')
+      .text(d => d.name.length > 8 ? d.name.substring(0, 8) + '...' : d.name);
 
-    // Add degree labels
-    node.append("text")
-      .attr("dx", 0)
-      .attr("dy", 18)
-      .attr("text-anchor", "middle")
-      .attr("font-size", "8px")
-      .attr("fill", "#666")
+    node.append('text')
+      .attr('dx', 0)
+      .attr('dy', 18)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '8px')
+      .attr('fill', '#666')
       .text(d => `deg: ${d.degree}`);
 
-    // Add hover effects
     node
-      .on("mouseover", function(event, d) {
-        if (!selectedFunction) {
+      .on('mouseover', function(event, d) {
+        if (!selectedFunctionRef.current) {
           const connectedNodes = new Set();
-          edges.forEach(edge => {
+          edgesDataRef.current.forEach(edge => {
             const sourceId = getDatumId(edge.source);
             const targetId = getDatumId(edge.target);
             if (sourceId === d.id) connectedNodes.add(targetId);
             if (targetId === d.id) connectedNodes.add(sourceId);
           });
 
-          node.select("circle")
-            .attr("opacity", n => 
+          node.select('circle')
+            .attr('opacity', n =>
               n.id === d.id || connectedNodes.has(n.id) ? 1 : 0.3
             );
 
           link
-            .attr("stroke-opacity", e => 
+            .attr('stroke-opacity', e =>
               getDatumId(e.source) === d.id || getDatumId(e.target) === d.id ? 0.9 : 0.1
             )
-            .attr("stroke", e => 
-              getDatumId(e.source) === d.id || getDatumId(e.target) === d.id ? "#2563eb" : "#cbd5f5"
+            .attr('stroke', e =>
+              getDatumId(e.source) === d.id || getDatumId(e.target) === d.id ? '#2563eb' : '#cbd5f5'
             );
         }
-        // Show tooltip
-        const tooltip = d3.select("body").append("div")
-          .attr("class", "tooltip")
-          .style("position", "absolute")
-          .style("background", "rgba(0,0,0,0.8)")
-          .style("color", "white")
-          .style("padding", "8px")
-          .style("border-radius", "4px")
-          .style("font-size", "12px")
-          .style("pointer-events", "none")
-          .style("z-index", "1000");
+
+        const tooltip = d3.select('body').append('div')
+          .attr('class', 'tooltip')
+          .style('position', 'absolute')
+          .style('background', 'rgba(0,0,0,0.8)')
+          .style('color', 'white')
+          .style('padding', '8px')
+          .style('border-radius', '4px')
+          .style('font-size', '12px')
+          .style('pointer-events', 'none')
+          .style('z-index', '1000');
 
         tooltip.html(`
           <strong>${d.name}</strong><br/>
@@ -189,53 +204,40 @@ const CallGraph = ({ selectedFunction = null, onNodeClick = null }) => {
           Total degree: ${d.degree}
         `);
       })
-      .on("mousemove", function(event) {
-        d3.select(".tooltip")
-          .style("left", (event.pageX + 10) + "px")
-          .style("top", (event.pageY - 10) + "px");
+      .on('mousemove', function(event) {
+        d3.select('.tooltip')
+          .style('left', (event.pageX + 10) + 'px')
+          .style('top', (event.pageY - 10) + 'px');
       })
-      .on("mouseout", function() {
-        if (!selectedFunction) {
-          node.select("circle").attr("opacity", 1);
+      .on('mouseout', () => {
+        if (!selectedFunctionRef.current) {
+          node.select('circle').attr('opacity', 1);
           link
-            .attr("stroke", "#999")
-            .attr("stroke-opacity", 0.6);
+            .attr('stroke', '#999')
+            .attr('stroke-opacity', 0.6);
         } else {
-          node.select("circle").attr("opacity", n =>
-            (n.id === selectedFunction || highlightedNeighbors.has(n.id)) ? 1 : 0.25
-          );
-          link
-            .attr("stroke", l => {
-              const key = createEdgeKey(getDatumId(l.source), getDatumId(l.target));
-              return highlightedEdgeKeys.has(key) ? "#2563eb" : "#cbd5f5";
-            })
-            .attr("stroke-opacity", l => {
-              const key = createEdgeKey(getDatumId(l.source), getDatumId(l.target));
-              return highlightedEdgeKeys.has(key) ? 0.9 : 0.15;
-            });
+          applyHighlight(selectedFunctionRef.current);
         }
-        // Remove tooltip
-        d3.select(".tooltip").remove();
+        d3.select('.tooltip').remove();
       })
-      .on("click", function(event, d) {
-        if (onNodeClick) {
-          onNodeClick(d);
+      .on('click', function(event, d) {
+        const handler = onNodeClickRef.current;
+        if (handler) {
+          handler(d);
         }
       });
 
-    // Update positions on simulation tick
-    simulation.on("tick", () => {
+    simulation.on('tick', () => {
       link
-        .attr("x1", d => d.source.x)
-        .attr("y1", d => d.source.y)
-        .attr("x2", d => d.target.x)
-        .attr("y2", d => d.target.y);
+        .attr('x1', d => d.source.x)
+        .attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x)
+        .attr('y2', d => d.target.y);
 
       node
-        .attr("transform", d => `translate(${d.x},${d.y})`);
+        .attr('transform', d => `translate(${d.x},${d.y})`);
     });
 
-    // Drag functions
     function dragstarted(event, d) {
       if (!event.active) simulation.alphaTarget(0.3).restart();
       d.fx = d.x;
@@ -253,11 +255,25 @@ const CallGraph = ({ selectedFunction = null, onNodeClick = null }) => {
       d.fy = null;
     }
 
-    // Cleanup function
+    nodeSelectionRef.current = node;
+    linkSelectionRef.current = link;
+    applyHighlight(selectedFunctionRef.current);
+
     return () => {
       simulation.stop();
+      nodeSelectionRef.current = null;
+      linkSelectionRef.current = null;
     };
-  }, [dimensions, selectedFunction, onNodeClick]);
+  }, [dimensions, applyHighlight, getDatumId]);
+
+  useEffect(() => {
+    onNodeClickRef.current = onNodeClick;
+  }, [onNodeClick]);
+
+  useEffect(() => {
+    selectedFunctionRef.current = selectedFunction;
+    applyHighlight(selectedFunction);
+  }, [selectedFunction, applyHighlight]);
 
   return (
     <div className="w-full h-full relative">
