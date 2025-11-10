@@ -364,11 +364,11 @@ const WarningsPage = () => {
         </div>
 
         {/* Right Panel */}
-        <div className={`w-full ${isPresetPanelOpen ? 'lg:w-[70%]' : 'lg:w-full'} bg-white p-6 overflow-hidden transition-all duration-300`}>
+        <div className={`w-full ${isPresetPanelOpen ? 'lg:w-[70%]' : 'lg:w-full'} bg-white px-5 py-1 overflow-hidden transition-all duration-300`}>
           <div className="h-full flex flex-col">
-            <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-semibold text-gray-900">Call Graph Visualization</h2>
+            <div className="mb-1 flex flex-col gap-1 md:flex-row md:items-center md:space-x-3">
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <h2 className="text-lg font-semibold text-gray-900">Call Graph Visualization</h2>
                 <div className="relative group">
                   <button
                     type="button"
@@ -382,18 +382,10 @@ const WarningsPage = () => {
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => setSelectedFunction(null)}
-                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                그래프 초기화
-              </button>
-            </div>
-            <div className="mb-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-1.5 md:flex-1 md:justify-center">
                 {FILTER_CONFIG[selectedPreset]?.map(filter => (
-                  <div key={filter.key} className="flex flex-col text-xs gap-1 min-w-[150px]">
-                    <label className="font-medium text-gray-500">{filter.label}</label>
+                  <div key={filter.key} className="flex flex-col text-xs gap-0.5 min-w-[135px]">
+                    <label className="font-medium text-gray-500 leading-tight text-[12px]">{filter.label}</label>
                     <select
                       value={filters[filter.key] || filter.options[0].value}
                       onChange={(e) => handleFilterChange(filter.key, e.target.value)}
@@ -407,6 +399,14 @@ const WarningsPage = () => {
                     </select>
                   </div>
                 ))}
+              </div>
+              <div className="flex-shrink-0">
+                <button
+                  onClick={() => setSelectedFunction(null)}
+                  className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  그래프 초기화
+                </button>
               </div>
             </div>
             <div className="flex-1">
