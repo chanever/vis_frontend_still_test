@@ -13,16 +13,46 @@ const CallGraph = ({ selectedFunction = null, onNodeClick = null }) => {
   const onNodeClickRef = useRef(onNodeClick);
 
   useEffect(() => {
+    const svgElement = svgRef.current;
+    if (!svgElement) return;
+
     const updateDimensions = () => {
-      if (svgRef.current) {
-        const rect = svgRef.current.getBoundingClientRect();
-        setDimensions({ width: rect.width, height: rect.height });
-      }
+      const rect = svgElement.getBoundingClientRect();
+      setDimensions(prev => {
+        if (prev.width === rect.width && prev.height === rect.height) {
+          return prev;
+        }
+        return { width: rect.width, height: rect.height };
+      });
     };
 
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
+
+    let resizeObserver;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(entries => {
+        for (const entry of entries) {
+          if (entry.target === svgElement) {
+            const { width, height } = entry.contentRect;
+            setDimensions(prev => {
+              if (prev.width === width && prev.height === height) {
+                return prev;
+              }
+              return { width, height };
+            });
+          }
+        }
+      });
+      resizeObserver.observe(svgElement);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateDimensions);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
   }, []);
 
   const getDatumId = useCallback((endpoint) => (

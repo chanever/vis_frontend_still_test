@@ -195,23 +195,18 @@ const WarningsPage = () => {
   };
 
   const selectedFunctionMeta = functionsWithMetrics.find(func => func.name === selectedFunction);
+  const selectedPresetMeta = PRESETS.find(preset => preset.id === selectedPreset) || {};
 
   return (
     <div className="flex flex-col h-[calc(100vh-73px)] bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">RefaVis Function Explorer</h1>
-            <p className="text-sm text-gray-500">탐색 기준을 선택해 함수를 하이라이트하고 Call Graph를 살펴보세요.</p>
+      {selectedFunctionMeta && (
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <div className="text-sm text-gray-500">
+            선택된 함수: <span className="ml-1 font-semibold text-gray-900">{selectedFunctionMeta.name}</span>
           </div>
-          {selectedFunctionMeta && (
-            <div className="text-sm text-gray-500">
-              선택된 함수: <span className="ml-1 font-semibold text-gray-900">{selectedFunctionMeta.name}</span>
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left Panel */}
@@ -266,30 +261,6 @@ const WarningsPage = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-2">필터</h3>
-                    <div className="space-y-3">
-                      {FILTER_CONFIG[selectedPreset].map(filter => (
-                        <div key={filter.key}>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">
-                            {filter.label}
-                          </label>
-                          <select
-                            value={filters[filter.key] || filter.options[0].value}
-                            onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                          >
-                            {filter.options.map(option => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
                   <div>
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-semibold text-gray-900">함수 목록</h3>
@@ -396,11 +367,20 @@ const WarningsPage = () => {
         <div className={`w-full ${isPresetPanelOpen ? 'lg:w-[70%]' : 'lg:w-full'} bg-white p-6 overflow-hidden transition-all duration-300`}>
           <div className="h-full flex flex-col">
             <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-2 md:mb-0">Call Graph Visualization</h2>
-                <p className="text-sm text-gray-600">
-                  좌측 리스트에서 함수를 선택하거나 그래프 노드를 클릭하면 해당 함수와 1-hop 연결이 하이라이트 됩니다.
-                </p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-semibold text-gray-900">Call Graph Visualization</h2>
+                <div className="relative group">
+                  <button
+                    type="button"
+                    aria-label="Call Graph 안내"
+                    className="w-6 h-6 rounded-full border border-gray-300 text-xs font-semibold text-gray-600 bg-white hover:bg-gray-100 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    i
+                  </button>
+                  <div className="absolute left-0 md:left-auto md:right-0 mt-2 hidden w-64 rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-600 shadow-lg group-hover:flex group-focus-within:flex">
+                    좌측 리스트에서 함수를 선택하거나 그래프 노드를 클릭하면 해당 함수와 1-hop 연결이 하이라이트 됩니다.
+                  </div>
+                </div>
               </div>
               <button
                 onClick={() => setSelectedFunction(null)}
@@ -408,6 +388,26 @@ const WarningsPage = () => {
               >
                 그래프 초기화
               </button>
+            </div>
+            <div className="mb-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
+              <div className="flex flex-wrap gap-3">
+                {FILTER_CONFIG[selectedPreset]?.map(filter => (
+                  <div key={filter.key} className="flex flex-col text-xs gap-1 min-w-[150px]">
+                    <label className="font-medium text-gray-500">{filter.label}</label>
+                    <select
+                      value={filters[filter.key] || filter.options[0].value}
+                      onChange={(e) => handleFilterChange(filter.key, e.target.value)}
+                      className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
+                    >
+                      {filter.options.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="flex-1">
               <CallGraph 
