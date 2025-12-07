@@ -81,6 +81,7 @@ const CallGraphWebGL = ({ searchFunctionName = '', graphData = null }) => {
   const [isSubgraphMode, setIsSubgraphMode] = useState(false); // Track if showing subgraph
   const [subgraphData, setSubgraphData] = useState(null); // Store extracted subgraph
   const [isPanelOpen, setIsPanelOpen] = useState(true); // Toggle for SQLite Call Graph panel
+  const [edgeFilterMode, setEdgeFilterMode] = useState('all'); // 'all' | 'incoming' | 'outgoing'
   const containerRef = useRef();
   const graphRef = useRef();
   const isUpdatingView = useRef(false); // Prevent loops during view updates
@@ -90,6 +91,14 @@ const CallGraphWebGL = ({ searchFunctionName = '', graphData = null }) => {
   const highlightLinksRef = useRef(new Set()); // Ref for highlighted links
   const hoverInEdgesRef = useRef(new Set()); // Ref for incoming edges to hovered/searched node
   const hoverOutEdgesRef = useRef(new Set()); // Ref for outgoing edges from hovered/searched node
+  // Refs for edge filter mode - store full subgraph data for filtering
+  const subgraphMatchedIdsRef = useRef(new Set()); // IDs of matched (searched) nodes
+  const subgraphInNeighborIdsRef = useRef(new Set()); // IDs of nodes that call matched nodes (sources of in-edges)
+  const subgraphOutNeighborIdsRef = useRef(new Set()); // IDs of nodes called by matched nodes (targets of out-edges)
+  const subgraphAllInEdgesRef = useRef(new Set()); // All incoming edge IDs
+  const subgraphAllOutEdgesRef = useRef(new Set()); // All outgoing edge IDs
+  const subgraphAllLinksRef = useRef([]); // All link objects in subgraph
+  const edgeFilterModeRef = useRef('all'); // Ref for edge filter mode
   const viewModeRef = useRef('cluster'); // Ref to avoid stale closure in zoom handler
   const dataRef = useRef(null); // Ref to avoid stale closure in event handlers
 
@@ -99,6 +108,7 @@ const CallGraphWebGL = ({ searchFunctionName = '', graphData = null }) => {
   // Keep refs in sync with state to avoid stale closures
   viewModeRef.current = viewMode;
   dataRef.current = data;
+  edgeFilterModeRef.current = edgeFilterMode;
   const pendingExternalSearchRef = useRef(null); // For coordinating external search with data load
 
   // Dual thresholds for hysteresis to prevent rapid toggling
@@ -184,6 +194,14 @@ const CallGraphWebGL = ({ searchFunctionName = '', graphData = null }) => {
           hoverInEdgesRef.current = new Set();
           hoverOutEdgesRef.current = new Set();
           searchTermRef.current = '';
+          // Clear subgraph filter refs
+          subgraphMatchedIdsRef.current = new Set();
+          subgraphInNeighborIdsRef.current = new Set();
+          subgraphOutNeighborIdsRef.current = new Set();
+          subgraphAllInEdgesRef.current = new Set();
+          subgraphAllOutEdgesRef.current = new Set();
+          subgraphAllLinksRef.current = [];
+          setEdgeFilterMode('all');
 
           // Switch back to cluster view and data
           if (graphRef.current && clusterData) {
@@ -250,6 +268,8 @@ const CallGraphWebGL = ({ searchFunctionName = '', graphData = null }) => {
     // Extract subgraph: matched nodes + 1-hop neighbors
     const matchedIds = new Set(matchedNodes.map(n => n.id));
     const neighborIds = new Set();
+    const inNeighborIds = new Set(); // Nodes that CALL matched nodes (sources of incoming edges)
+    const outNeighborIds = new Set(); // Nodes CALLED BY matched nodes (targets of outgoing edges)
     const linkData = []; // Store clean link data
     const inEdgeIds = new Set(); // Track in-edges by ID
     const outEdgeIds = new Set(); // Track out-edges by ID
@@ -261,12 +281,14 @@ const CallGraphWebGL = ({ searchFunctionName = '', graphData = null }) => {
       // If source is matched, add target as neighbor (outgoing edge)
       if (matchedIds.has(sourceId)) {
         neighborIds.add(targetId);
+        outNeighborIds.add(targetId); // Track as out-neighbor
         linkData.push({ source: sourceId, target: targetId });
         outEdgeIds.add(`${sourceId}->${targetId}`);
       }
       // If target is matched, add source as neighbor (incoming edge)
       if (matchedIds.has(targetId)) {
         neighborIds.add(sourceId);
+        inNeighborIds.add(sourceId); // Track as in-neighbor
         // Only add link if not already added (avoid duplicates)
         if (!matchedIds.has(sourceId)) {
           linkData.push({ source: sourceId, target: targetId });
@@ -310,6 +332,18 @@ const CallGraphWebGL = ({ searchFunctionName = '', graphData = null }) => {
 
     console.log('[Search] Created subgraph:', subgraphNodes.length, 'nodes,', uniqueLinks.length, 'links');
     console.log('[Search] In-edges:', inEdgeIds.size, 'Out-edges:', outEdgeIds.size);
+    console.log('[Search] In-neighbors:', inNeighborIds.size, 'Out-neighbors:', outNeighborIds.size);
+
+    // Store full subgraph data in refs for edge filter mode
+    subgraphMatchedIdsRef.current = matchedIds;
+    subgraphInNeighborIdsRef.current = inNeighborIds;
+    subgraphOutNeighborIdsRef.current = outNeighborIds;
+    subgraphAllInEdgesRef.current = inEdgeIds;
+    subgraphAllOutEdgesRef.current = outEdgeIds;
+    subgraphAllLinksRef.current = uniqueLinks;
+
+    // Reset edge filter mode to 'all' when entering subgraph
+    setEdgeFilterMode('all');
 
     // Update highlight refs for color coding
     // IMPORTANT: Highlight ALL subgraph nodes so none are dimmed
@@ -381,6 +415,84 @@ const CallGraphWebGL = ({ searchFunctionName = '', graphData = null }) => {
       }, 3000); // Wait 3 seconds for simulation to settle
     }, 50);
   }, [searchTerm, rawData, clusterData, isSubgraphMode]);
+
+  // Handle edge filter mode changes in subgraph mode
+  useEffect(() => {
+    console.log('[EdgeFilter] Effect triggered - edgeFilterMode:', edgeFilterMode, 'isSubgraphMode:', isSubgraphMode);
+
+    // Only apply filter when in subgraph mode
+    if (!isSubgraphMode) {
+      console.log('[EdgeFilter] SKIP - not in subgraph mode');
+      return;
+    }
+
+    if (!graphRef.current) {
+      console.log('[EdgeFilter] SKIP - no graph ref');
+      return;
+    }
+
+    const matchedIds = subgraphMatchedIdsRef.current;
+    const inNeighborIds = subgraphInNeighborIdsRef.current;
+    const outNeighborIds = subgraphOutNeighborIdsRef.current;
+    const allInEdges = subgraphAllInEdgesRef.current;
+    const allOutEdges = subgraphAllOutEdgesRef.current;
+    const allLinks = subgraphAllLinksRef.current;
+
+    if (matchedIds.size === 0) {
+      console.log('[EdgeFilter] SKIP - no matched IDs in refs');
+      return;
+    }
+
+    console.log('[EdgeFilter] Applying filter:', edgeFilterMode);
+    console.log('[EdgeFilter] Matched:', matchedIds.size, 'InNeighbors:', inNeighborIds.size, 'OutNeighbors:', outNeighborIds.size);
+
+    let filteredNodeIds;
+    let filteredInEdges;
+    let filteredOutEdges;
+
+    switch (edgeFilterMode) {
+      case 'incoming':
+        // Show matched nodes + nodes that CALL matched (in-neighbors)
+        filteredNodeIds = new Set([...matchedIds, ...inNeighborIds]);
+        filteredInEdges = allInEdges;
+        filteredOutEdges = new Set(); // Hide outgoing edges
+        break;
+      case 'outgoing':
+        // Show matched nodes + nodes CALLED BY matched (out-neighbors)
+        filteredNodeIds = new Set([...matchedIds, ...outNeighborIds]);
+        filteredInEdges = new Set(); // Hide incoming edges
+        filteredOutEdges = allOutEdges;
+        break;
+      case 'all':
+      default:
+        // Show all: matched + in-neighbors + out-neighbors
+        filteredNodeIds = new Set([...matchedIds, ...inNeighborIds, ...outNeighborIds]);
+        filteredInEdges = allInEdges;
+        filteredOutEdges = allOutEdges;
+        break;
+    }
+
+    // Filter links based on edge filter mode
+    const filteredLinks = allLinks.filter(link => {
+      const sourceId = link.source.id || link.source;
+      const targetId = link.target.id || link.target;
+      const linkId = `${sourceId}->${targetId}`;
+
+      // Keep link if it's in the filtered in-edges or out-edges
+      return filteredInEdges.has(linkId) || filteredOutEdges.has(linkId);
+    });
+
+    console.log('[EdgeFilter] Filtered nodes:', filteredNodeIds.size, 'Filtered links:', filteredLinks.length);
+
+    // Update highlight refs for rendering
+    highlightNodesRef.current = filteredNodeIds;
+    highlightLinksRef.current = new Set(filteredLinks);
+    hoverInEdgesRef.current = filteredInEdges;
+    hoverOutEdgesRef.current = filteredOutEdges;
+
+    // Trigger redraw
+    graphRef.current.nodeRelSize(graphRef.current.nodeRelSize());
+  }, [edgeFilterMode, isSubgraphMode]);
 
   useEffect(() => {
     console.log('[Graph Init] Effect triggered - data:', !!data, 'container:', !!containerRef.current, 'graphRef:', !!graphRef.current);
@@ -1212,6 +1324,71 @@ const CallGraphWebGL = ({ searchFunctionName = '', graphData = null }) => {
             </div>
           </div>
         </>
+      )}
+
+      {/* Edge Filter Toggle - Only visible in subgraph mode */}
+      {isSubgraphMode && (
+        <div style={{
+          position: 'absolute',
+          top: 10,
+          right: 10,
+          background: 'rgba(255, 255, 255, 0.95)',
+          borderRadius: '8px',
+          padding: '6px',
+          zIndex: 25,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+          display: 'flex',
+          gap: '2px'
+        }}>
+          <button
+            onClick={() => setEdgeFilterMode('all')}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              background: edgeFilterMode === 'all' ? '#3b82f6' : '#f3f4f6',
+              color: edgeFilterMode === 'all' ? 'white' : '#374151',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setEdgeFilterMode('incoming')}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              background: edgeFilterMode === 'incoming' ? '#22c55e' : '#f3f4f6',
+              color: edgeFilterMode === 'incoming' ? 'white' : '#374151',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Incoming ({subgraphAllInEdgesRef.current.size})
+          </button>
+          <button
+            onClick={() => setEdgeFilterMode('outgoing')}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              background: edgeFilterMode === 'outgoing' ? '#f97316' : '#f3f4f6',
+              color: edgeFilterMode === 'outgoing' ? 'white' : '#374151',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Outgoing ({subgraphAllOutEdgesRef.current.size})
+          </button>
+        </div>
       )}
 
       {/* Toggle Button - Always visible */}

@@ -304,7 +304,8 @@ const WarningsPage = ({
           const newMap = new Map(prev);
           if (!newMap.has(funcName)) {
             const existingWindows = Array.from(newMap.keys()).length;
-            newMap.set(funcName, { x: 0, y: 16 + existingWindows * 420 });
+            // Y offset: edge filter button group (top:10 + height:~41) + gap(10) = 61, rounded to 60
+            newMap.set(funcName, { x: 0, y: 60 + existingWindows * 420 });
           }
           return newMap;
         });
@@ -374,7 +375,8 @@ const WarningsPage = ({
   };
 
   const handleMouseDown = (e, funcName) => {
-    const position = windowPositions.get(funcName) || { x: 0, y: 16 };
+    // Y offset: edge filter button group (top:10 + height:~41) + gap(10) = 61, rounded to 60
+    const position = windowPositions.get(funcName) || { x: 0, y: 60 };
     setDraggedWindow({
       funcName,
       startX: e.clientX,
@@ -406,11 +408,15 @@ const WarningsPage = ({
       setDraggedWindow(prev => prev ? { ...prev, hasDragged: true } : null);
     }
     
+    // Edge filter button group: top(10) + height(41) + gap(9) = 60px minimum
+    const EDGE_FILTER_BUTTON_HEIGHT = 60;
+    const newY = draggedWindow.offsetY + deltaY;
+
     setWindowPositions(prev => {
       const newMap = new Map(prev);
       newMap.set(draggedWindow.funcName, {
         x: draggedWindow.offsetX + deltaX,
-        y: draggedWindow.offsetY + deltaY
+        y: Math.max(newY, EDGE_FILTER_BUTTON_HEIGHT) // Prevent dragging above button group
       });
       return newMap;
     });
@@ -818,16 +824,20 @@ const WarningsPage = ({
                 const funcMeta = functionsWithMetrics.find(f => f.name === funcName);
                 const windowState = overviewWindowStates.get(funcName);
                 if (!funcMeta || windowState !== 'minimized') return null;
-                
-                const position = windowPositions.get(funcName) || { x: 0, y: 16 };
-                
+
+                // Edge filter button group: top(10) + height(41) + gap(9) = 60px minimum
+                const EDGE_FILTER_BUTTON_HEIGHT = 60;
+                const position = windowPositions.get(funcName) || { x: 0, y: EDGE_FILTER_BUTTON_HEIGHT };
+                // Enforce minimum Y to avoid overlap with edge filter buttons
+                const safeY = Math.max(position.y, EDGE_FILTER_BUTTON_HEIGHT);
+
                 return (
-                  <div 
+                  <div
                     key={funcName}
                     className="absolute z-30 bg-white border border-gray-200 rounded-lg shadow-xl w-96 max-w-[calc(100%-2rem)]"
-                    style={{ 
+                    style={{
                       right: `${16 - position.x}px`,
-                      top: `${position.y}px`
+                      top: `${safeY}px`
                     }}
                   >
                     <div 
@@ -900,16 +910,20 @@ const WarningsPage = ({
                 const funcMeta = functionsWithMetrics.find(f => f.name === funcName);
                 const windowState = overviewWindowStates.get(funcName);
                 if (!funcMeta || windowState !== 'maximized') return null;
-                
-                const position = windowPositions.get(funcName) || { x: 0, y: 16 };
-                
+
+                // Edge filter button group: top(10) + height(41) + gap(9) = 60px minimum
+                const EDGE_FILTER_BUTTON_HEIGHT = 60;
+                const position = windowPositions.get(funcName) || { x: 0, y: EDGE_FILTER_BUTTON_HEIGHT };
+                // Enforce minimum Y to avoid overlap with edge filter buttons
+                const safeY = Math.max(position.y, EDGE_FILTER_BUTTON_HEIGHT);
+
                 return (
-                  <div 
+                  <div
                     key={funcName}
                     className="absolute z-30 bg-white border border-gray-200 rounded-lg shadow-xl w-96 max-w-[calc(100%-2rem)]"
-                    style={{ 
+                    style={{
                       right: `${16 - position.x}px`,
-                      top: `${position.y}px`
+                      top: `${safeY}px`
                     }}
                   >
                     <div 
