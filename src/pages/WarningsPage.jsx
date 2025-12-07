@@ -293,10 +293,10 @@ const WarningsPage = ({
         // Add to selection (limit of 2)
         setManualSelection(prev => [...prev, funcName]);
         setSelectedFunction(funcName);
-        // Set window state to maximized for this function
+        // Set window state to minimized for this function (start collapsed)
         setOverviewWindowStates(prev => {
           const newMap = new Map(prev);
-          newMap.set(funcName, 'maximized');
+          newMap.set(funcName, 'minimized');
           return newMap;
         });
         // Set initial position on the right side
@@ -351,10 +351,10 @@ const WarningsPage = ({
       
       // Add to selection (limit of 2)
       setManualSelection(prev => [...prev, funcName]);
-      // Set window state to maximized for this function
+      // Set window state to minimized for this function (start collapsed)
       setOverviewWindowStates(prev => {
         const newMap = new Map(prev);
-        newMap.set(funcName, 'maximized');
+        newMap.set(funcName, 'minimized');
         return newMap;
       });
       // Set initial position on the right side
@@ -877,28 +877,6 @@ const WarningsPage = ({
                         >
                           ▲
                         </button>
-                        <button
-                          onClick={() => {
-                            setManualSelection(prev => prev.filter(name => name !== funcName));
-                            setOverviewWindowStates(prev => {
-                              const newMap = new Map(prev);
-                              newMap.delete(funcName);
-                              return newMap;
-                            });
-                            setWindowPositions(prev => {
-                              const newMap = new Map(prev);
-                              newMap.delete(funcName);
-                              return newMap;
-                            });
-                            if (selectedFunction === funcName) {
-                              setSelectedFunction(null);
-                            }
-                          }}
-                          className="text-gray-400 hover:text-gray-600 text-lg px-2 py-1 hover:bg-gray-100 rounded transition-colors"
-                          title="Close"
-                        >
-                          ×
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -944,23 +922,6 @@ const WarningsPage = ({
                           title="Minimize"
                         >
                           ▼
-                        </button>
-                        <button
-                          onClick={() => {
-                            setManualSelection(prev => prev.filter(name => name !== funcName));
-                            setOverviewWindowStates(prev => {
-                              const newMap = new Map(prev);
-                              newMap.delete(funcName);
-                              return newMap;
-                            });
-                            if (selectedFunction === funcName) {
-                              setSelectedFunction(null);
-                            }
-                          }}
-                          className="text-gray-400 hover:text-gray-600 text-xl px-2 py-1 hover:bg-gray-100 rounded transition-colors"
-                          title="Close"
-                        >
-                          ×
                         </button>
                       </div>
                     </div>
