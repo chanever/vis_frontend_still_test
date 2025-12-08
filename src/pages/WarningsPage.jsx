@@ -132,6 +132,14 @@ const WarningsPage = ({
 
   const usingBackend = mode === 'backend';
 
+  // 모드 전환 시 선택 상태 및 오버뷰 창 초기화
+  useEffect(() => {
+    setManualSelection([]);
+    setSelectedFunction(null);
+    setOverviewWindowStates(new Map());
+    setWindowPositions(new Map());
+  }, [mode]);
+
   const functionsSource = usingBackend
     ? (backendFunctions || [])
     : sqliteFunctions;
@@ -438,7 +446,8 @@ const WarningsPage = ({
     setWindowPositions(prev => {
       const newMap = new Map(prev);
       newMap.set(draggedWindow.funcName, {
-        x: draggedWindow.offsetX + deltaX,
+        // 가로 위치는 고정(좌/우 특정 영역), 세로만 드래그로 이동 가능
+        x: 0,
         y: Math.max(newY, EDGE_FILTER_BUTTON_HEIGHT) // Prevent dragging above button group
       });
       return newMap;
@@ -470,6 +479,24 @@ const WarningsPage = ({
       };
     }
   }, [draggedWindow, handleMouseMove, handleMouseUp]);
+
+  // 그래프 모드에서 함수 2개가 선택된 경우,
+  // 각 함수의 overview 막대를 각 창(왼쪽/오른쪽) 내 동일한 Y 위치에서 시작하도록 정렬
+  useEffect(() => {
+    if (graphViewMode !== 'graph') return;
+    if (manualSelection.length !== 2) return;
+
+    const EDGE_FILTER_BUTTON_HEIGHT = 60;
+    const baseY = EDGE_FILTER_BUTTON_HEIGHT + 8;
+
+    setWindowPositions((prev) => {
+      const newMap = new Map(prev);
+      manualSelection.forEach((name) => {
+        newMap.set(name, { x: 0, y: baseY });
+      });
+      return newMap;
+    });
+  }, [graphViewMode, manualSelection]);
 
   // Get all functions that should show overview windows (from manualSelection)
   const functionsToShow = useMemo(() => {
@@ -933,7 +960,7 @@ const WarningsPage = ({
               </div>
             </div>
             <div className="flex-1 relative">
-              {/* Minimized Horizontal Bars - Floating on right */}
+              {/* Minimized Horizontal Bars - Positioned by selection order */}
               {graphViewMode === 'graph' && manualSelection.map((funcName) => {
                 const funcMeta = functionsWithMetrics.find(f => f.name === funcName);
                 const windowState = overviewWindowStates.get(funcName);
@@ -945,14 +972,24 @@ const WarningsPage = ({
                 // Enforce minimum Y to avoid overlap with edge filter buttons
                 const safeY = Math.max(position.y, EDGE_FILTER_BUTTON_HEIGHT);
 
+                const selectionIndex = manualSelection.indexOf(funcName);
+                const isFirst = selectionIndex === 0;
+                const isSecond = selectionIndex === 1;
+
+                // 첫 번째 선택 함수: 왼쪽 상단 고정, 두 번째: 오른쪽 상단 고정
+                const baseStyle = { top: `${safeY}px` };
+                const style =
+                  manualSelection.length === 1 || isFirst
+                    ? { ...baseStyle, left: '16px' }
+                    : isSecond
+                      ? { ...baseStyle, right: '16px' }
+                      : { ...baseStyle, right: '16px' };
+
                 return (
                   <div
                     key={funcName}
                     className="absolute z-30 bg-white border border-gray-200 rounded-lg shadow-xl w-96 max-w-[calc(100%-2rem)]"
-                    style={{
-                      right: `${16 - position.x}px`,
-                      top: `${safeY}px`
-                    }}
+                    style={style}
                   >
                     <div 
                       className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white cursor-move"
@@ -1009,14 +1046,23 @@ const WarningsPage = ({
                 // Enforce minimum Y to avoid overlap with edge filter buttons
                 const safeY = Math.max(position.y, EDGE_FILTER_BUTTON_HEIGHT);
 
+                const selectionIndex = manualSelection.indexOf(funcName);
+                const isFirst = selectionIndex === 0;
+                const isSecond = selectionIndex === 1;
+
+                const baseStyle = { top: `${safeY}px` };
+                const style =
+                  manualSelection.length === 1 || isFirst
+                    ? { ...baseStyle, left: '16px' }
+                    : isSecond
+                      ? { ...baseStyle, right: '16px' }
+                      : { ...baseStyle, right: '16px' };
+
                 return (
                   <div
                     key={funcName}
                     className="absolute z-30 bg-white border border-gray-200 rounded-lg shadow-xl w-96 max-w-[calc(100%-2rem)]"
-                    style={{
-                      right: `${16 - position.x}px`,
-                      top: `${safeY}px`
-                    }}
+                    style={style}
                   >
                     <div 
                       className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white cursor-move"
