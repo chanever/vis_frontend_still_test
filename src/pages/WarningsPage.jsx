@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import sqliteFunctions from '../../sqlite_function.json';
 import sqliteWarnings from '../../sqlite_warning.json';
 import CallGraphWebGL from '../components/CallGraphWebGL';
+import RadarChart from '../components/RadarChart';
+import MetricsHeatmap from '../components/MetricsHeatmap';
 
 const PRESETS = [
   { id: 'complexity', label: 'High Complexity' },
@@ -124,6 +126,9 @@ const WarningsPage = ({
   const [isDataViewerOpen, setIsDataViewerOpen] = useState(false);
   const [selectedDataType, setSelectedDataType] = useState('cg'); // 'cg' | 'functions' | 'warnings'
   const [notification, setNotification] = useState(null); // { message: string, type: 'info' | 'error' }
+  const [graphViewMode, setGraphViewMode] = useState('graph'); // 'graph' | 'radar_heatmap'
+  const [selectionHistory, setSelectionHistory] = useState([]); // Array of function names (recent selections)
+  const [isHistoryMode, setIsHistoryMode] = useState(false); // true = show selection history instead of filtered list
 
   const usingBackend = mode === 'backend';
 
@@ -279,10 +284,14 @@ const WarningsPage = ({
           return newMap;
         });
       } else {
-        // Check if already at limit of 2 functions
-        if (manualSelection.length >= 2) {
+        const maxSelectable =
+          graphViewMode === 'radar_heatmap' ? 5 : 2;
+        if (manualSelection.length >= maxSelectable) {
           setNotification({
-            message: 'You can only compare 2 functions at a time. Please deselect a function first.',
+            message:
+              graphViewMode === 'radar_heatmap'
+                ? 'Radar/Heatmap 모드에서는 최대 5개의 함수까지 선택할 수 있습니다. 다른 함수를 선택하려면 먼저 일부를 해제하세요.'
+                : 'Call graph 모드에서는 한 번에 최대 2개의 함수만 비교할 수 있습니다. 다른 함수를 선택하려면 먼저 일부를 해제하세요.',
             type: 'error'
           });
           // Auto-dismiss after 4 seconds
@@ -292,6 +301,11 @@ const WarningsPage = ({
         
         // Add to selection (limit of 2)
         setManualSelection(prev => [...prev, funcName]);
+        // Update selection history (most recent first, max 20, no duplicates)
+        setSelectionHistory(prev => {
+          const next = [funcName, ...prev.filter(name => name !== funcName)];
+          return next.slice(0, 20);
+        });
         setSelectedFunction(funcName);
         // Set window state to minimized for this function (start collapsed)
         setOverviewWindowStates(prev => {
@@ -338,10 +352,14 @@ const WarningsPage = ({
         return newMap;
       });
     } else {
-      // Check if already at limit of 2 functions
-      if (manualSelection.length >= 2) {
+      const maxSelectable =
+        graphViewMode === 'radar_heatmap' ? 5 : 2;
+      if (manualSelection.length >= maxSelectable) {
         setNotification({
-          message: 'You can only compare 2 functions at a time. Please deselect a function first.',
+          message:
+            graphViewMode === 'radar_heatmap'
+              ? 'Radar/Heatmap 모드에서는 최대 5개의 함수까지 선택할 수 있습니다. 다른 함수를 선택하려면 먼저 일부를 해제하세요.'
+              : 'Call graph 모드에서는 한 번에 최대 2개의 함수만 비교할 수 있습니다. 다른 함수를 선택하려면 먼저 일부를 해제하세요.',
           type: 'error'
         });
         // Auto-dismiss after 4 seconds
@@ -349,8 +367,13 @@ const WarningsPage = ({
         return;
       }
       
-      // Add to selection (limit of 2)
-      setManualSelection(prev => [...prev, funcName]);
+        // Add to selection (limit of 2)
+        setManualSelection(prev => [...prev, funcName]);
+        // Update selection history
+        setSelectionHistory(prev => {
+          const next = [funcName, ...prev.filter(name => name !== funcName)];
+          return next.slice(0, 20);
+        });
       // Set window state to minimized for this function (start collapsed)
       setOverviewWindowStates(prev => {
         const newMap = new Map(prev);
@@ -565,7 +588,20 @@ const WarningsPage = ({
                 <div className="space-y-4">
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-semibold text-gray-900">함수 목록</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold text-gray-900">함수 목록</h3>
+                        <button
+                          type="button"
+                          onClick={() => setIsHistoryMode(prev => !prev)}
+                          className={`text-[11px] px-2 py-1 rounded border ${
+                            isHistoryMode
+                              ? 'border-blue-500 text-blue-700 bg-blue-50'
+                              : 'border-gray-300 text-gray-600 bg-white hover:bg-gray-50'
+                          }`}
+                        >
+                          선택 기록
+                        </button>
+                      </div>
                       <div className="flex items-center gap-2">
                         {manualSelection.length > 0 && (
                           <button
@@ -618,10 +654,12 @@ const WarningsPage = ({
                     </div>
                     
                     <div className="text-[10px] text-gray-400 mb-2">
-                      함수를 클릭하면 서브그래프가 표시됩니다. 최대 2개까지 선택하여 비교할 수 있습니다.
+                      {graphViewMode === 'radar_heatmap'
+                        ? '함수를 클릭하면 Radar/Heatmap에 사용할 함수가 선택됩니다. 최소 2개, 최대 5개까지 선택할 수 있습니다.'
+                        : '함수를 클릭하면 서브그래프가 표시됩니다. 최대 2개까지 선택하여 비교할 수 있습니다.'}
                       {manualSelection.length > 0 && (
                         <span className="block mt-1 text-blue-600 font-medium">
-                          선택됨: {manualSelection.length}/2
+                          선택됨: {manualSelection.length}/{graphViewMode === 'radar_heatmap' ? 5 : 2}
                         </span>
                       )}
                     </div>
@@ -631,7 +669,17 @@ const WarningsPage = ({
                           Enter a Git repository URL and run the analysis to load functions.
                         </div>
                       )}
-                      {filteredFunctions.map(func => {
+                      {isHistoryMode && selectionHistory.length === 0 && (
+                        <div className="text-[11px] text-gray-400 border border-dashed border-gray-200 rounded-lg p-3 text-center mb-2">
+                          아직 선택된 함수가 없습니다. 함수 목록에서 함수를 선택하면 최근 선택 기록이 여기에 표시됩니다.
+                        </div>
+                      )}
+                      {(isHistoryMode
+                        ? selectionHistory
+                            .map(name => functionsWithMetrics.find(f => f.name === name))
+                            .filter(Boolean)
+                        : filteredFunctions
+                      ).map(func => {
                         const isInSubgraphSelection = manualSelection.includes(func.name);
                         const isSelectedForOverview = selectedFunction === func.name;
                         const selectionIndex = manualSelection.indexOf(func.name);
@@ -747,7 +795,9 @@ const WarningsPage = ({
           <div className="flex flex-col px-5 py-1 flex-1 min-w-0 relative">
             <div className="mb-1 flex flex-col gap-1 md:flex-row md:items-center md:space-x-3">
               <div className="flex items-center gap-2 flex-shrink-0">
-                <h2 className="text-lg font-semibold text-gray-900">Call Graph Visualization</h2>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {graphViewMode === 'graph' ? 'Call Graph Visualization' : 'Radar Chart / Heatmap'}
+                </h2>
                 {mode === 'backend' && (
                   <div className="relative group">
                     <button
@@ -785,7 +835,7 @@ const WarningsPage = ({
                     </div>
                   </div>
                 )}
-                {manualSelection.length > 0 && (
+                {manualSelection.length > 0 && graphViewMode === 'graph' && (
                   <div className="ml-1 text-xs text-gray-500">
                     서브그래프:{' '}
                     {manualSelection.map((name, idx) => (
@@ -793,6 +843,19 @@ const WarningsPage = ({
                         {name}{idx < manualSelection.length - 1 ? ', ' : ''}
                       </span>
                     ))}
+                  </div>
+                )}
+                {manualSelection.length > 0 && graphViewMode === 'radar_heatmap' && (
+                  <div className="ml-1 text-xs text-gray-500 flex items-center">
+                    <span className="mr-1">선택된 함수:</span>
+                    <div className="max-w-xs md:max-w-sm lg:max-w-md overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                      {manualSelection.map((name, idx) => (
+                        <span key={idx} className="font-semibold text-blue-700 mr-2">
+                          {name}
+                          {idx < manualSelection.length - 1 ? ',' : ''}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {selectedFunction && manualSelection.length === 0 && (
@@ -804,7 +867,7 @@ const WarningsPage = ({
                   </div>
                 )}
               </div>
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 flex items-center gap-2">
                 <button
                   onClick={() => {
                     setManualSelection([]);
@@ -814,13 +877,42 @@ const WarningsPage = ({
                   }}
                   className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  그래프 초기화
+                  {graphViewMode === 'graph' ? '그래프 초기화' : '선택 함수 초기화'}
+                </button>
+                <button
+                  onClick={() => {
+                    setGraphViewMode(prev => {
+                      const next = prev === 'graph' ? 'radar_heatmap' : 'graph';
+                      if (next === 'graph') {
+                        // Radar/Heatmap -> Call graph: 선택 함수 초기화 및 기본 그래프로 전환
+                        setManualSelection([]);
+                        setSelectedFunction(null);
+                        setOverviewWindowStates(new Map());
+                        setWindowPositions(new Map());
+                        setCallGraphSearchName('');
+                      } else {
+                        // Call graph -> Radar/Heatmap: 기존 선택 상태 초기화
+                        setManualSelection([]);
+                        setSelectedFunction(null);
+                        setOverviewWindowStates(new Map());
+                        setWindowPositions(new Map());
+                      }
+                      return next;
+                    });
+                  }}
+                  className={`inline-flex items-center justify-center rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                    graphViewMode === 'radar_heatmap'
+                      ? 'border-blue-500 text-blue-700 bg-blue-50 hover:bg-blue-100'
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {graphViewMode === 'graph' ? 'radar/heatmap' : 'call graph'}
                 </button>
               </div>
             </div>
             <div className="flex-1 relative">
               {/* Minimized Horizontal Bars - Floating on right */}
-              {manualSelection.map((funcName) => {
+              {graphViewMode === 'graph' && manualSelection.map((funcName) => {
                 const funcMeta = functionsWithMetrics.find(f => f.name === funcName);
                 const windowState = overviewWindowStates.get(funcName);
                 if (!funcMeta || windowState !== 'minimized') return null;
@@ -884,7 +976,7 @@ const WarningsPage = ({
               })}
 
               {/* Maximized Floating Windows - Draggable */}
-              {manualSelection.map((funcName) => {
+              {graphViewMode === 'graph' && manualSelection.map((funcName) => {
                 const funcMeta = functionsWithMetrics.find(f => f.name === funcName);
                 const windowState = overviewWindowStates.get(funcName);
                 if (!funcMeta || windowState !== 'maximized') return null;
@@ -1085,37 +1177,60 @@ const WarningsPage = ({
                 </div>
               )}
               <div className="w-full h-full min-h-[480px] border border-gray-200 rounded-lg overflow-hidden">
-                {mode === 'backend' && !backendGraphLoaded ? (
+                {graphViewMode === 'graph' ? (
+                  mode === 'backend' && !backendGraphLoaded ? (
+                    <div className="w-full h-full flex items-center justify-center px-4 text-center text-sm text-gray-500">
+                      Enter the Git repository URL to extract the call graph.
+                    </div>
+                  ) : manualSelection.length === 2 ? (
+                    <div className="w-full h-full flex">
+                      <div className="w-1/2 h-full border-r border-gray-200">
+                        <CallGraphWebGL
+                          key={`${mode}-${manualSelection[0]}`}
+                          searchFunctionName={manualSelection[0]}
+                          graphData={mode === 'backend' ? backendCg : null}
+                        />
+                      </div>
+                      <div className="w-1/2 h-full">
+                        <CallGraphWebGL
+                          key={`${mode}-${manualSelection[1]}`}
+                          searchFunctionName={manualSelection[1]}
+                          graphData={mode === 'backend' ? backendCg : null}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <CallGraphWebGL
+                      key={mode === 'backend' ? 'backend-single' : 'local-single'}
+                      searchFunctionName={
+                        manualSelection.length === 1
+                          ? manualSelection[0]
+                          : callGraphSearchName
+                      }
+                      graphData={mode === 'backend' ? backendCg : null}
+                    />
+                  )
+                ) : usingBackend && (!backendFunctions || backendFunctions.length === 0) ? (
                   <div className="w-full h-full flex items-center justify-center px-4 text-center text-sm text-gray-500">
-                    Enter the Git repository URL to extract the call graph.
-                  </div>
-                ) : manualSelection.length === 2 ? (
-                  <div className="w-full h-full flex">
-                    <div className="w-1/2 h-full border-r border-gray-200">
-                      <CallGraphWebGL
-                        key={`${mode}-${manualSelection[0]}`}
-                        searchFunctionName={manualSelection[0]}
-                        graphData={mode === 'backend' ? backendCg : null}
-                      />
-                    </div>
-                    <div className="w-1/2 h-full">
-                      <CallGraphWebGL
-                        key={`${mode}-${manualSelection[1]}`}
-                        searchFunctionName={manualSelection[1]}
-                        graphData={mode === 'backend' ? backendCg : null}
-                      />
-                    </div>
+                    Enter the Git repository URL and run the analysis to load functions for radar/heatmap view.
                   </div>
                 ) : (
-                  <CallGraphWebGL
-                    key={mode === 'backend' ? 'backend-single' : 'local-single'}
-                    searchFunctionName={
-                      manualSelection.length === 1
-                        ? manualSelection[0]
-                        : callGraphSearchName
-                    }
-                    graphData={mode === 'backend' ? backendCg : null}
-                  />
+                  <div className="w-full h-full flex flex-col lg:flex-row">
+                    <div className="w-full lg:w-1/2 h-1/2 lg:h-full border-b lg:border-b-0 lg:border-r border-gray-200 p-4">
+                      <RadarChart
+                        functions={manualSelection
+                          .map(name => functionsWithMetrics.find(f => f.name === name))
+                          .filter(Boolean)}
+                      />
+                    </div>
+                    <div className="w-full lg:w-1/2 h-1/2 lg:h-full p-4">
+                      <MetricsHeatmap
+                        functions={manualSelection
+                          .map(name => functionsWithMetrics.find(f => f.name === name))
+                          .filter(Boolean)}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

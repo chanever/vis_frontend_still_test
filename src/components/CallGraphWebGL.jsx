@@ -80,7 +80,7 @@ const CallGraphWebGL = ({ searchFunctionName = '', graphData = null }) => {
   const [hoverNode, setHoverNode] = useState(null); // Currently hovered node
   const [isSubgraphMode, setIsSubgraphMode] = useState(false); // Track if showing subgraph
   const [subgraphData, setSubgraphData] = useState(null); // Store extracted subgraph
-  const [isPanelOpen, setIsPanelOpen] = useState(true); // Toggle for SQLite Call Graph panel
+  const [isPanelOpen, setIsPanelOpen] = useState(false); // Toggle for SQLite Call Graph panel
   const [edgeFilterMode, setEdgeFilterMode] = useState('all'); // 'all' | 'incoming' | 'outgoing'
   const containerRef = useRef();
   const graphRef = useRef();
