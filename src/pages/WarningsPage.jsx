@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import sqliteFunctions from '../../sqlite_function.json';
 import sqliteWarnings from '../../sqlite_warning.json';
@@ -131,6 +131,13 @@ const WarningsPage = ({
   const [isHistoryMode, setIsHistoryMode] = useState(false); // true = show selection history instead of filtered list
 
   const usingBackend = mode === 'backend';
+
+  // 모드 전환 감지 (렌더 시점에 직전 모드와 비교)
+  const prevModeRef = useRef(mode);
+  const modeJustChanged = prevModeRef.current !== mode;
+  if (modeJustChanged) {
+    prevModeRef.current = mode;
+  }
 
   // 모드 전환 시 선택 상태 및 오버뷰 창 초기화
   useEffect(() => {
@@ -1250,19 +1257,19 @@ const WarningsPage = ({
                     <div className="w-full h-full flex items-center justify-center px-4 text-center text-sm text-gray-500">
                       Enter the Git repository URL to extract the call graph.
                     </div>
-                  ) : manualSelection.length === 2 ? (
+                  ) : (modeJustChanged ? 0 : manualSelection.length) === 2 ? (
                     <div className="w-full h-full flex">
                       <div className="w-1/2 h-full border-r border-gray-200">
                         <CallGraphWebGL
                           key={`${mode}-${manualSelection[0]}`}
-                          searchFunctionName={manualSelection[0]}
+                          searchFunctionName={modeJustChanged ? '' : manualSelection[0]}
                           graphData={mode === 'backend' ? backendCg : null}
                         />
                       </div>
                       <div className="w-1/2 h-full">
                         <CallGraphWebGL
                           key={`${mode}-${manualSelection[1]}`}
-                          searchFunctionName={manualSelection[1]}
+                          searchFunctionName={modeJustChanged ? '' : manualSelection[1]}
                           graphData={mode === 'backend' ? backendCg : null}
                         />
                       </div>
@@ -1271,9 +1278,11 @@ const WarningsPage = ({
                     <CallGraphWebGL
                       key={mode === 'backend' ? 'backend-single' : 'local-single'}
                       searchFunctionName={
-                        manualSelection.length === 1
-                          ? manualSelection[0]
-                          : callGraphSearchName
+                        modeJustChanged
+                          ? ''
+                          : manualSelection.length === 1
+                            ? manualSelection[0]
+                            : callGraphSearchName
                       }
                       graphData={mode === 'backend' ? backendCg : null}
                     />
