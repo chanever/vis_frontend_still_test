@@ -881,6 +881,28 @@ const WarningsPage = ({
                 </button>
                 <button
                   onClick={() => {
+                    const nextMode = graphViewMode === 'graph' ? 'radar_heatmap' : 'graph';
+
+                    // Backend 모드에서 radar/heatmap으로 전환 시 데이터 유효성 검사
+                    if (
+                      nextMode === 'radar_heatmap' &&
+                      usingBackend &&
+                      (
+                        !backendFunctions ||
+                        backendFunctions.length === 0 ||
+                        !backendWarnings ||
+                        backendWarnings.length === 0
+                      )
+                    ) {
+                      setNotification({
+                        message:
+                          'Backend 모드에서 Radar/Heatmap을 사용하려면 functions 및 warnings 데이터가 필요합니다. 먼저 GitHub 저장소 분석을 완료해 주세요.',
+                        type: 'error',
+                      });
+                      setTimeout(() => setNotification(null), 4000);
+                      return;
+                    }
+
                     setGraphViewMode(prev => {
                       const next = prev === 'graph' ? 'radar_heatmap' : 'graph';
                       if (next === 'graph') {

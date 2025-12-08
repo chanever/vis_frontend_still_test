@@ -30,6 +30,23 @@ function App() {
 
   const BACKEND_BASE_URL = 'https://infovis-server.fly.dev';
 
+  const isValidGithubRepoUrl = (url) => {
+    if (!url) return false;
+    const trimmed = url.trim();
+
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.hostname !== 'github.com') return false;
+
+      const path = parsed.pathname.replace(/\.git$/, '');
+      const segments = path.split('/').filter(Boolean);
+      // Expect /owner/repo
+      return segments.length === 2;
+    } catch {
+      return false;
+    }
+  };
+
   const resetBackendState = () => {
     setBackendGraphLoaded(false);
     setBackendFunctions(null);
@@ -264,11 +281,23 @@ function App() {
 
   const runBackendPipeline = async () => {
     if (isBackendRunning) return;
-    if (!githubUrl || !githubUrl.trim()) {
+    const trimmedUrl = githubUrl.trim();
+
+    if (!trimmedUrl) {
       setBackendError({
         step: 'START',
         endpoint: `${BACKEND_BASE_URL}/api/tasks/start/`,
         message: 'GitHub repository URL is required.',
+      });
+      return;
+    }
+
+    if (!isValidGithubRepoUrl(trimmedUrl)) {
+      setBackendError({
+        step: 'START',
+        endpoint: `${BACKEND_BASE_URL}/api/tasks/start/`,
+        message:
+          '유효한 GitHub 저장소 URL을 입력하세요. 예: https://github.com/owner/repo 또는 https://github.com/owner/repo.git',
       });
       return;
     }
@@ -309,12 +338,12 @@ function App() {
         step: 'CLONING',
         endpoint: startEndpoint,
         level: 'INFO',
-        message: `POST ${startEndpoint} start (github_url=${githubUrl.trim()})`,
+        message: `POST ${startEndpoint} start (github_url=${trimmedUrl})`,
       });
       const startRes = await fetch(startEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ github_url: githubUrl.trim() }),
+        body: JSON.stringify({ github_url: trimmedUrl }),
       });
       try {
         startData = await startRes.json();
